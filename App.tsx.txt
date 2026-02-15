@@ -1,0 +1,378 @@
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { 
+  Search, Trash2, X, Smartphone, 
+  MessageCircle, Download, Upload, Calculator, ShoppingBag, 
+  CheckCircle2, Info, Plus, Minus, FileDown, Copy, ChevronRight, Code2,
+  PlusCircle, FileText, Laptop
+} from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { PRODUCTS as STATIC_PRODUCTS } from './constants';
+import { Product } from './types';
+
+// This constant holds the project structure for easy extraction/migration
+const PROJECT_FILES: Record<string, string> = {
+  'App.tsx': `// [Full content of App.tsx - Copy from your editor or this viewer]`,
+  'constants.ts': `import { Product } from './types';\n\nexport const PRODUCTS: Product[] = [\n  { id: '1', name: 'AV-UTI SUSPENSION 200 ML', nrv: 186 },\n  { id: '2', name: 'ENERZAL APPLE FC 200 ML', nrv: 26 },\n  { id: '3', name: 'ENERZAL LIME 100 GM', nrv: 44 },\n  { id: '4', name: 'ENERZAL LIME 500 GM POUCH', nrv: 201 },\n  { id: '5', name: 'ENERZAL LIME 75GM', nrv: 30 },\n  { id: '6', name: 'ENERZAL ORANGE 100 GM', nrv: 44 },\n  { id: '7', name: 'ENERZAL ORANGE 500 GM POUCH', nrv: 152 },\n  { id: '8', name: 'ENERZAL ORANGE 75GM', nrv: 33 },\n  { id: '9', name: 'ENERZAL ORANGE FC 200 ML', nrv: 25 },\n  { id: '10', name: 'ENERZAL ORANGE FC 500 ML', nrv: 37 },\n  { id: '11', name: 'ENERZAL PET BLITZ 500 ML', nrv: 34 },\n  { id: '12', name: 'ENERZAL ZERO ORANGE 5 GM', nrv: 10 },\n  { id: '13', name: 'ENERZAL ZERO ORANGE PET 400 ML', nrv: 30 },\n  { id: '14', name: 'ENERZAL ZERO ORANGE PET 500 ML', nrv: 41 },\n  { id: '15', name: 'FLEMICLAV 1000mg TABLETS 10T', nrv: 225 },\n  { id: '16', name: 'FLEMICLAV 375 TABLETS 10T', nrv: 107 },\n  { id: '17', name: 'FLEMICLAV 625 TABLETS 10T', nrv: 111 },\n  { id: '18', name: 'FLEMICLAV FORTE DRY SYRUP 30 ML', nrv: 95 },\n  { id: '19', name: 'FLEMICLAV KID DRY SYRUP 30 ML', nrv: 44 },\n  { id: '20', name: 'FLEMICLAV KID DT 10T', nrv: 71 },\n  { id: '21', name: 'FLEMICLAV-IV INJECTION 1.2 GM', nrv: 105 },\n  { id: '22', name: 'FLUNARIN 10 TABLETS 10T', nrv: 35 },\n  { id: '23', name: 'FLUNARIN 5 TABLETS 10T', nrv: 18 },\n  { id: '24', name: 'GUTRITE SACHETS 1 GM', nrv: 11 },\n  { id: '25', name: 'MUCORIS NASAL SPRAY 0.1% 10 ML', nrv: 38 },\n  { id: '26', name: 'MUCORIS-P NASAL DROPS 0.05% 10 ML', nrv: 31 },\n  { id: '27', name: 'OTEK - AC NEO 5ML', nrv: 51 },\n  { id: '28', name: 'OTEK- AF EAR DROPS 10 ML', nrv: 39 },\n  { id: '29', name: 'PLARICA TABLETS 10T', nrv: 201 },\n  { id: '30', name: 'SALBETOL 2 TABLETS 10T', nrv: 2 },\n  { id: '31', name: 'SALBETOL 4 TABLETS 10T', nrv: 2 },\n  { id: '32', name: 'URIPRO 0.4 CAPSULES 10C', nrv: 49 },\n  { id: '33', name: 'VITCOFOL CAPSULES 30C', nrv: 77 },\n  { id: '34', name: 'VITCOFOL FCM 1000 INJECTION 20 ML', nrv: 1000 },\n  { id: '35', name: 'VITCOFOL FCM INJECTION 10 ML', nrv: 600 },\n  { id: '36', name: 'VITCOFOL HB CAPSULES 10C', nrv: 122 },\n  { id: '37', name: 'VITCOFOL-S 100 INJECTION (5 X 5 ML)', nrv: 461 },\n  { id: '38', name: 'ZOXAN 250 TABLETS 10T', nrv: 5 },\n  { id: '39', name: 'ZOXAN 500 TABLETS 10T', nrv: 31 },\n  { id: '40', name: 'ZOXAN EYE OINTMENT 10 GM', nrv: 9 },\n  { id: '41', name: 'ZOXAN EYE/EAR DROPS 10 ML', nrv: 11 },\n  { id: '42', name: 'ZOXAN OZ TABLETS 10T', nrv: 72 },\n  { id: '43', name: 'ZOXAN-D EYE/EAR DROPS 10 ML', nrv: 23 },\n];`,
+  'types.ts': `export interface Product {\n  id: string;\n  name: string;\n  nrv: number;\n}\n\nexport interface CartItem extends Product {\n  quantity: number;\n}\n\nexport interface AppState {\n  quantities: Record<string, number>;\n  searchQuery: string;\n}`,
+  'index.tsx': `import React from 'react';\nimport ReactDOM from 'react-dom/client';\nimport App from './App';\n\nconst rootElement = document.getElementById('root');\nif (rootElement) {\n  const root = ReactDOM.createRoot(rootElement);\n  root.render(\n    <React.StrictMode>\n      <App />\n    </React.StrictMode>\n  );\n}`,
+  'index.html': `<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">\n  <title>Proxima Order Calculator</title>\n  <link rel="manifest" href="/manifest.json">\n  <meta name="theme-color" content="#4338ca">\n  <script src="https://cdn.tailwindcss.com"></script>\n  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">\n</head>\n<body>\n  <div id="root"></div>\n  <script type="module" src="/index.tsx"></script>\n</body>\n</html>`,
+  'package.json': `{\n  "name": "proxima-calculator",\n  "private": true,\n  "version": "1.0.0",\n  "type": "module",\n  "scripts": {\n    "dev": "vite",\n    "build": "vite build",\n    "preview": "vite preview"\n  },\n  "dependencies": {\n    "react": "^19.0.0",\n    "react-dom": "^19.0.0",\n    "lucide-react": "^0.460.0",\n    "jspdf": "^2.5.1",\n    "jspdf-autotable": "^3.8.2"\n  },\n  "devDependencies": {\n    "@types/react": "^19.0.0",\n    "@types/react-dom": "^19.0.0",\n    "@vitejs/plugin-react": "^4.3.4",\n    "typescript": "^5.7.2",\n    "vite": "^6.0.3"\n  }\n}`,
+  'vite.config.ts': `import { defineConfig } from 'vite';\nimport react from '@vitejs/plugin-react';\n\nexport default defineConfig({\n  plugins: [react()],\n  server: {\n    port: 3000\n  }\n});`,
+  'manifest.json': `{\n  "short_name": "Proxima",\n  "name": "Proxima Order Calculator",\n  "icons": [\n    {\n      "src": "https://cdn-icons-png.flaticon.com/512/2311/2311992.png",\n      "sizes": "192x192",\n      "type": "image/png"\n    }\n  ],\n  "start_url": ".",\n  "display": "standalone",\n  "theme_color": "#4338ca",\n  "background_color": "#f8fafc"\n}`,
+  'README.md': `# 🧾 Proxima Order Calculator\n\nA specialized, standalone calculator for pharmaceutical orders.\n\n## 🚀 Deployment\n1. Upload all files to a GitHub Repository.\n2. Connect GitHub to Vercel.com.\n3. Your app is live!`
+};
+
+const App: React.FC = () => {
+  const [customProducts, setCustomProducts] = useState<Product[]>(() => {
+    try {
+      const saved = localStorage.getItem('pharma_custom_products');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+  
+  const [showToast, setShowToast] = useState<string | null>(null);
+  const [showCartOnly, setShowCartOnly] = useState(false);
+  const [quantities, setQuantities] = useState<Record<string, number>>(() => {
+    try {
+      const saved = localStorage.getItem('pharma_quantities');
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  });
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isAddingProduct, setIsAddingProduct] = useState(false);
+  const [showSyncModal, setShowSyncModal] = useState(false);
+  const [viewingSource, setViewingSource] = useState<string | null>(null);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const [newName, setNewName] = useState('');
+  const [newNrv, setNewNrv] = useState('');
+
+  useEffect(() => {
+    localStorage.setItem('pharma_custom_products', JSON.stringify(customProducts));
+    localStorage.setItem('pharma_quantities', JSON.stringify(quantities));
+  }, [customProducts, quantities]);
+
+  useEffect(() => {
+    if (showToast) {
+      const timer = setTimeout(() => setShowToast(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [showToast]);
+
+  const handleEraseAll = () => {
+    if (!confirm("Clear this entire order?")) return;
+    setQuantities({});
+    setShowCartOnly(false);
+    setShowToast("Cleared");
+  };
+
+  const updateQuantity = useCallback((id: string, delta: number) => {
+    setQuantities(prev => {
+      const current = prev[id] || 0;
+      const next = Math.max(0, current + delta);
+      if (next === 0) {
+        const { [id]: _, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [id]: next };
+    });
+  }, []);
+
+  const handleManualInput = (id: string, value: string) => {
+    const num = parseInt(value, 10);
+    setQuantities(prev => {
+      if (isNaN(num) || num <= 0) {
+        const { [id]: _, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [id]: num };
+    });
+  };
+
+  const allProducts = useMemo(() => [...STATIC_PRODUCTS, ...customProducts], [customProducts]);
+  
+  const filteredProducts = useMemo(() => {
+    let list = allProducts;
+    if (showCartOnly) list = list.filter(p => (quantities[p.id] || 0) > 0);
+    const query = searchQuery.toLowerCase();
+    return list.filter(p => p.name.toLowerCase().includes(query));
+  }, [allProducts, searchQuery, showCartOnly, quantities]);
+
+  const activeItemsCount = Object.keys(quantities).length;
+  const grandTotal = allProducts.reduce((acc, p) => acc + (p.nrv * (quantities[p.id] || 0)), 0);
+
+  const generatePDF = async () => {
+    const active = allProducts.filter(p => (quantities[p.id] || 0) > 0);
+    if (active.length === 0) return alert("Add items first");
+    setIsGeneratingPDF(true);
+    try {
+      const doc = new jsPDF();
+      doc.setFontSize(22); doc.setTextColor(67, 56, 202);
+      doc.text('PROXIMA ORDER', 14, 20);
+      doc.setFontSize(10); doc.setTextColor(100);
+      doc.text(`Date: ${new Date().toLocaleString()}`, 14, 28);
+      autoTable(doc, {
+        startY: 35,
+        head: [['Item', 'Price', 'Qty', 'Total']],
+        body: active.map(p => [p.name, `₹${p.nrv}`, quantities[p.id], `₹${p.nrv * quantities[p.id]}`]),
+        foot: [['', '', 'TOTAL', `₹${grandTotal}`]],
+        headStyles: { fillColor: [67, 56, 202] }
+      });
+      doc.save('Proxima_Order.pdf');
+      setShowToast("PDF Saved");
+    } finally { setIsGeneratingPDF(false); }
+  };
+
+  const shareWhatsApp = () => {
+    const active = allProducts.filter(p => (quantities[p.id] || 0) > 0);
+    if (active.length === 0) return alert("Add items first");
+    const list = active.map(p => `• ${p.name}: ${quantities[p.id]} x ₹${p.nrv}`).join('\n');
+    const msg = `🧾 *PROXIMA ORDER*\n\n${list}\n\n*TOTAL: ₹${grandTotal.toLocaleString()}*`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-100 flex flex-col font-sans select-none overflow-x-hidden">
+      {showToast && (
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[100] bg-green-600 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-bounce">
+          <CheckCircle2 size={18} />
+          <span className="font-black text-[10px] uppercase tracking-widest">{showToast}</span>
+        </div>
+      )}
+
+      <header className="sticky top-0 z-50 bg-indigo-700 text-white shadow-xl">
+        <div className="max-w-xl mx-auto px-4 py-3 space-y-3">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <Calculator size={24} className="text-indigo-200" />
+              <div>
+                <h1 className="text-xl font-black uppercase tracking-tight leading-none">Proxima</h1>
+                <p className="text-[9px] font-black text-indigo-300 uppercase">Calculator</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={handleEraseAll} className="bg-white/10 p-2.5 rounded-2xl active:bg-red-500 transition-colors"><Trash2 size={20}/></button>
+              <button onClick={() => setIsAddingProduct(!isAddingProduct)} className={`p-2.5 rounded-2xl transition-all ${isAddingProduct ? 'bg-white text-indigo-700' : 'bg-white/10'}`}><PlusCircle size={20}/></button>
+              <button onClick={() => setShowSyncModal(true)} className="p-2.5 bg-white/10 rounded-2xl active:bg-white/20"><Smartphone size={20}/></button>
+            </div>
+          </div>
+          
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-300" size={18} />
+              <input type="text" placeholder="Search medicines..." className="w-full bg-indigo-900/40 border border-white/10 rounded-2xl py-3.5 pl-11 pr-4 text-white outline-none" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+            </div>
+            <button onClick={() => setShowCartOnly(!showCartOnly)} className={`w-14 h-14 rounded-2xl flex items-center justify-center border-2 transition-all ${showCartOnly ? 'bg-white text-indigo-700 border-white' : 'bg-indigo-800/40 border-white/10'}`}>
+              <ShoppingBag size={22} />
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main className="flex-1 max-w-xl mx-auto w-full px-3 py-4 pb-48 space-y-3">
+        {isAddingProduct && (
+          <div className="bg-white rounded-[2rem] p-6 shadow-2xl border-2 border-indigo-500 animate-in fade-in slide-in-from-top-4 duration-300">
+            <h4 className="text-[10px] font-black uppercase text-indigo-500 mb-4 tracking-widest">Add New Medicine</h4>
+            <input type="text" placeholder="PRODUCT NAME" className="w-full bg-slate-50 p-4 rounded-xl font-black border-2 border-slate-100 mb-3 uppercase" value={newName} onChange={e => setNewName(e.target.value)} />
+            <div className="flex gap-2">
+              <input type="number" placeholder="PRICE ₹" className="flex-1 bg-slate-50 p-4 rounded-xl font-black border-2 border-slate-100" value={newNrv} onChange={e => setNewNrv(e.target.value)} />
+              <button onClick={() => {
+                const n = parseFloat(newNrv);
+                if (newName && !isNaN(n)) {
+                  setCustomProducts([{id: `c-${Date.now()}`, name: newName.toUpperCase(), nrv: n}, ...customProducts]);
+                  setNewName(''); setNewNrv(''); setIsAddingProduct(false);
+                  setShowToast("Added Product");
+                }
+              }} className="bg-indigo-600 text-white px-8 rounded-xl font-black active:scale-95 transition-transform">ADD</button>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 gap-2.5">
+          {filteredProducts.map(p => (
+            <div key={p.id} className={`bg-white rounded-[1.75rem] p-4 border-2 transition-all duration-200 ${quantities[p.id] ? 'border-indigo-500 shadow-md ring-4 ring-indigo-500/5' : 'border-slate-200/60'}`}>
+              <div className="flex justify-between items-start mb-3">
+                <div className="flex-1">
+                  <h3 className={`text-sm font-black uppercase ${quantities[p.id] ? 'text-indigo-900' : 'text-slate-800'}`}>{p.name}</h3>
+                  <p className="text-[10px] font-bold text-slate-400 mt-1">MRP ₹{p.nrv}</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center bg-slate-100 rounded-2xl p-1 gap-1 flex-1 max-w-[180px]">
+                  <button onClick={() => updateQuantity(p.id, -1)} className="w-11 h-11 flex items-center justify-center bg-white rounded-xl shadow-sm text-red-500 active:scale-90 transition-transform"><Minus size={20}/></button>
+                  <input type="number" className="w-full bg-transparent text-center font-black text-xl outline-none" value={quantities[p.id] || ''} onChange={e => handleManualInput(p.id, e.target.value)} placeholder="0" />
+                  <button onClick={() => updateQuantity(p.id, 1)} className="w-11 h-11 flex items-center justify-center bg-indigo-600 text-white rounded-xl active:scale-90 transition-transform"><Plus size={20}/></button>
+                </div>
+                <div className="text-right min-w-[80px]">
+                  {quantities[p.id] > 0 ? (
+                    <p className="text-lg font-black text-indigo-700 animate-in zoom-in duration-200">₹{p.nrv * quantities[p.id]}</p>
+                  ) : (
+                    <div className="flex gap-1">
+                      <button onClick={() => updateQuantity(p.id, 10)} className="text-[8px] font-black px-2 py-1 bg-slate-50 border rounded-lg hover:bg-white active:bg-indigo-50 transition-colors">+10</button>
+                      <button onClick={() => updateQuantity(p.id, 50)} className="text-[8px] font-black px-2 py-1 bg-slate-50 border rounded-lg hover:bg-white active:bg-indigo-50 transition-colors">+50</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+          
+          {filteredProducts.length === 0 && (
+            <div className="py-20 text-center space-y-4">
+              <div className="w-20 h-20 bg-slate-200 rounded-full flex items-center justify-center mx-auto opacity-50">
+                <Search size={32} className="text-slate-400" />
+              </div>
+              <p className="font-black text-slate-400 uppercase text-xs tracking-widest">No matching medicines</p>
+            </div>
+          )}
+        </div>
+      </main>
+
+      <footer className="fixed bottom-0 left-0 right-0 p-4 z-40">
+        <div className="max-w-xl mx-auto bg-slate-900 text-white rounded-[2.5rem] p-4 flex items-center justify-between shadow-2xl border border-white/10 backdrop-blur-lg">
+          <div className="pl-4">
+            <span className="text-[10px] opacity-40 uppercase font-black tracking-widest">{activeItemsCount} Items Selected</span>
+            <p className="text-3xl font-black text-indigo-300">₹{grandTotal.toLocaleString()}</p>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={shareWhatsApp} className="w-14 h-14 bg-green-500 rounded-2xl flex items-center justify-center active:scale-90 shadow-lg shadow-green-500/20 transition-transform"><MessageCircle size={24}/></button>
+            <button onClick={generatePDF} disabled={isGeneratingPDF} className={`w-14 h-14 bg-rose-500 rounded-2xl flex items-center justify-center active:scale-90 shadow-lg shadow-rose-500/20 transition-transform ${isGeneratingPDF ? 'opacity-50' : ''}`}><FileDown size={24}/></button>
+            <button onClick={() => setShowSyncModal(true)} className="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center active:scale-90 shadow-lg shadow-indigo-500/20 transition-transform"><Smartphone size={24}/></button>
+          </div>
+        </div>
+      </footer>
+
+      {showSyncModal && (
+        <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-6 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-md overflow-hidden flex flex-col shadow-2xl max-h-[90vh] animate-in slide-in-from-bottom-8 duration-300">
+            <div className="bg-indigo-700 p-8 text-white text-center relative">
+              <button onClick={() => setShowSyncModal(false)} className="absolute top-6 right-6 p-2 bg-white/10 rounded-full hover:bg-white/20 transition-colors"><X size={20}/></button>
+              <div className="flex flex-col items-center gap-2">
+                <Laptop size={32} className="text-indigo-200" />
+                <h2 className="text-2xl font-black uppercase tracking-tight">Laptop Settings</h2>
+              </div>
+            </div>
+            
+            <div className="p-6 space-y-4 overflow-y-auto">
+              <div className="bg-indigo-50 p-5 rounded-3xl border border-indigo-100">
+                <p className="text-[10px] text-indigo-700 font-black mb-3 uppercase tracking-widest">Independent Deployment:</p>
+                <button 
+                  onClick={() => setViewingSource('App.tsx')}
+                  className="w-full flex items-center justify-between p-4 bg-white text-indigo-700 rounded-2xl font-black text-xs border border-indigo-200 active:scale-95 transition-all shadow-sm"
+                >
+                  <div className="flex items-center gap-3"><Code2 size={18}/> GET PROJECT FILES</div>
+                  <ChevronRight size={18}/>
+                </button>
+                <p className="mt-3 text-[9px] text-slate-500 font-bold leading-relaxed px-1 uppercase tracking-tight">
+                  Click above to copy files to your laptop and upload to GitHub/Vercel.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <button onClick={() => {
+                  const data = JSON.stringify({ q: quantities, c: customProducts });
+                  const blob = new Blob([data], { type: 'application/json' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a'); a.href = url; a.download = 'Proxima_Backup.json'; a.click();
+                }} className="flex flex-col items-center justify-center p-5 bg-slate-50 rounded-3xl font-black text-[9px] gap-2 border border-slate-200 hover:bg-white transition-colors">
+                  <Download size={20} className="text-indigo-600"/> EXPORT BACKUP
+                </button>
+                <button onClick={() => fileInputRef.current?.click()} className="flex flex-col items-center justify-center p-5 bg-slate-50 rounded-3xl font-black text-[9px] gap-2 border border-slate-200 hover:bg-white transition-colors">
+                  <Upload size={20} className="text-indigo-600"/> IMPORT BACKUP
+                </button>
+              </div>
+
+              <input type="file" ref={fileInputRef} className="hidden" onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                  try {
+                    const d = JSON.parse(ev.target?.result as string);
+                    if (d.q) setQuantities(d.q);
+                    if (d.c) setCustomProducts(d.c);
+                    setShowToast("Restored Successfully");
+                    setShowSyncModal(false);
+                  } catch { alert("Invalid Backup File Format"); }
+                };
+                reader.readAsText(file);
+              }} />
+
+              <button onClick={() => setShowSyncModal(false)} className="w-full py-5 bg-slate-900 text-white font-black rounded-2xl uppercase text-sm tracking-widest active:scale-95 transition-transform">Close Menu</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewingSource && (
+        <div className="fixed inset-0 z-[110] bg-slate-900 text-white p-6 flex flex-col animate-in slide-in-from-right duration-300">
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex items-center gap-2">
+              <Laptop size={20} className="text-indigo-400" />
+              <h2 className="font-black text-white uppercase tracking-tighter">Copy Project Files</h2>
+            </div>
+            <button onClick={() => setViewingSource(null)} className="p-2 bg-white/10 rounded-full hover:bg-white/20 transition-colors"><X/></button>
+          </div>
+          
+          <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar">
+            {Object.keys(PROJECT_FILES).map(fileName => (
+              <button 
+                key={fileName}
+                onClick={() => setViewingSource(fileName)}
+                className={`whitespace-nowrap px-5 py-3 rounded-2xl text-[10px] font-black border uppercase transition-all ${viewingSource === fileName ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg' : 'bg-slate-800 border-white/10 text-slate-400'}`}
+              >
+                {fileName}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex-1 flex flex-col bg-black rounded-3xl border border-white/10 overflow-hidden shadow-2xl mb-4">
+            <div className="bg-slate-800/80 px-5 py-3 flex justify-between items-center border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
+                <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                <span className="ml-2 text-[10px] font-mono text-slate-300 font-bold uppercase tracking-widest">{viewingSource}</span>
+              </div>
+              <button 
+                onClick={() => {
+                  const content = PROJECT_FILES[viewingSource];
+                  navigator.clipboard.writeText(content);
+                  setShowToast("File Copied!");
+                }}
+                className="p-2 hover:bg-indigo-500 rounded-xl text-white bg-indigo-600 transition-colors"
+              >
+                <Copy size={16}/>
+              </button>
+            </div>
+            <div className="flex-1 p-5 font-mono text-[10px] overflow-auto whitespace-pre leading-relaxed selection:bg-indigo-500/50 no-scrollbar">
+              {PROJECT_FILES[viewingSource]}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <button 
+              onClick={() => {
+                const content = PROJECT_FILES[viewingSource];
+                navigator.clipboard.writeText(content);
+                setShowToast("Ready to Paste");
+              }}
+              className="w-full py-5 bg-indigo-600 rounded-2xl font-black flex items-center justify-center gap-3 active:scale-95 shadow-xl transition-all"
+            >
+              <Copy size={20}/> COPY {viewingSource}
+            </button>
+            <p className="text-[10px] text-center text-slate-500 font-bold uppercase tracking-[0.2em] leading-loose">
+              1. Create a file named <span className="text-white">"{viewingSource}"</span><br/>
+              2. Paste the code into it.
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default App;
